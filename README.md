@@ -70,4 +70,11 @@ Depending on the option you chose:
 
 ## 📂 Implementation Walkthrough
 
-You can view the detailed architecture layout, user flows, database relational definitions, and manual verification procedures in the [Implementation Plan](file:///C:/Users/vijay/.gemini/antigravity-ide/brain/2bdf5c19-7392-421e-94f2-9795e68878e0/implementation_plan.md) and [Walkthrough](file:///C:/Users/vijay/.gemini/antigravity-ide/brain/2bdf5c19-7392-421e-94f2-9795e68878e0/walkthrough.md) artifacts.
+You can view the detailed architecture layout, user flows, database relational definitions, and manual verification procedures in the [Implementation Plan](file:///C:/Users/vijay/.gemini/antigravity-ide/brain/3734957a-4b79-4cce-a93a-762811e65088/implementation_plan.md) and [Walkthrough](file:///C:/Users/vijay/.gemini/antigravity-ide/brain/3734957a-4b79-4cce-a93a-762811e65088/walkthrough.md) artifacts.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](file:///d:/current%20project/College%20Skill%20Marketplace/LICENSE) file for details.
+
