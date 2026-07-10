@@ -162,6 +162,10 @@ export const AppProvider = ({ children }) => {
               }
               return p;
             }));
+          } else if (message.type === 'WHITEBOARD_DRAW') {
+            window.dispatchEvent(new CustomEvent('ws-whiteboard-draw', { detail: message.payload }));
+          } else if (message.type === 'CODE_SYNC') {
+            window.dispatchEvent(new CustomEvent('ws-code-sync', { detail: message.payload }));
           }
         } catch (err) {
           console.error('Error handling WS event data:', err);
@@ -330,6 +334,12 @@ export const AppProvider = ({ children }) => {
     return false;
   };
 
+  const sendWsMessage = (type, payload) => {
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send(JSON.stringify({ type, payload }));
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentRole,
@@ -343,6 +353,7 @@ export const AppProvider = ({ children }) => {
       alumniSlots,
       notifications,
       wsStatus,
+      sendWsMessage,
       handleRoleChange,
       handleCreateGig,
       handleHireStudent,

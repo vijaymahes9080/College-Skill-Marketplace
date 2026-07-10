@@ -2,15 +2,129 @@ import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../context/AppContext';
 import { 
   GitBranch, MessageSquare, Video, Mic, MicOff, PhoneOff, 
-  Send, Users, CheckSquare, Plus, ArrowRight, ArrowLeft 
+  Send, Users, CheckSquare, Plus, ArrowRight, ArrowLeft,
+  Trash2, Eraser, Edit3
 } from 'lucide-react';
 
 export default function CollabWorkspace() {
-  const { projects, currentUser, handleUpdateKanban, handleSendChatMessage } = useContext(AppContext);
+  const { projects, currentUser, handleUpdateKanban, handleSendChatMessage, sendWsMessage } = useContext(AppContext);
   
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [chatMessage, setChatMessage] = useState('');
   const chatBottomRef = useRef(null);
+
+  // Whiteboard & Sandbox states
+  const [collabTab, setCollabTab] = useState('kanban'); // kanban, sandbox
+  const canvasRef = useRef(null);
+  const ctxRef = useRef(null);
+  const [drawing, setDrawing] = useState(false);
+  const [brushColor, setBrushColor] = useState('#3B82F6');
+  const [brushSize, setBrushSize] = useState(4);
+  const [lastCoords, setLastCoords] = useState(null);
+  const [codePlayground, setCodePlayground] = useState(`// Welcome to the Collaborative Code Sandbox!
+// Keystrokes are synced with active team members in real-time.
+
+function calculateOptimizedRoute(nodes) {
+  console.log("Analyzing paths...");
+  // Write collaborative algorithms here
+  
+}`);
+
+  // Setup Canvas context
+  useEffect(() => {
+    if (collabTab !== 'sandbox' || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    canvas.width = canvas.parentElement.clientWidth || 500;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d');
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctxRef.current = ctx;
+  }, [collabTab]);
+
+  const startDrawing = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setLastCoords({ x, y });
+    setDrawing(true);
+  };
+
+  const draw = (e) => {
+    if (!drawing || !canvasRef.current || !lastCoords) return;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Draw locally
+    const ctx = ctxRef.current;
+    ctx.beginPath();
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
+    ctx.moveTo(lastCoords.x, lastCoords.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    
+    // Send socket sync
+    sendWsMessage('WHITEBOARD_DRAW', {
+      projectId: selectedProjectId,
+      x,
+      y,
+      prevX: lastCoords.x,
+      prevY: lastCoords.y,
+      color: brushColor,
+      brushSize
+    });
+    
+    setLastCoords({ x, y });
+  };
+
+  const stopDrawing = () => {
+    setDrawing(false);
+    setLastCoords(null);
+  };
+
+  const handleCodeChange = (e) => {
+    const val = e.target.value;
+    setCodePlayground(val);
+    sendWsMessage('CODE_SYNC', {
+      projectId: selectedProjectId,
+      code: val
+    });
+  };
+
+  // Listen to incoming sockets
+  useEffect(() => {
+    const handleWhiteboardDraw = (e) => {
+      const { projectId, x, y, prevX, prevY, color, brushSize } = e.detail;
+      if (projectId !== selectedProjectId || !ctxRef.current) return;
+      
+      const ctx = ctxRef.current;
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = brushSize;
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    };
+
+    const handleCodeSync = (e) => {
+      const { projectId, code } = e.detail;
+      if (projectId !== selectedProjectId) return;
+      setCodePlayground(code);
+    };
+
+    window.addEventListener('ws-whiteboard-draw', handleWhiteboardDraw);
+    window.addEventListener('ws-code-sync', handleCodeSync);
+
+    return () => {
+      window.removeEventListener('ws-whiteboard-draw', handleWhiteboardDraw);
+      window.removeEventListener('ws-code-sync', handleCodeSync);
+    };
+  }, [selectedProjectId, collabTab]);
 
   // Call simulation states
   const [isInCall, setIsInCall] = useState(false);
@@ -138,13 +252,34 @@ export default function CollabWorkspace() {
         
         {/* Kanban Task Board - Left Columns */}
         <div className="xl:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <CheckSquare size={16} className="text-secondary" />
+          
+          {/* Sub-tab selection row */}
+          <div className="flex border-b border-zinc-800 gap-6">
+            <button
+              onClick={() => setCollabTab('kanban')}
+              className={`pb-4 text-sm font-semibold relative ${collabTab === 'kanban' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
               Interactive Kanban Sprint
-            </h2>
-            <span className="text-[10px] text-zinc-500 font-medium">Click arrows to update tasks</span>
+              {collabTab === 'kanban' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-primary"></div>}
+            </button>
+            <button
+              onClick={() => setCollabTab('sandbox')}
+              className={`pb-4 text-sm font-semibold relative ${collabTab === 'sandbox' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Shared Draw Whiteboard & Playground
+              {collabTab === 'sandbox' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-primary"></div>}
+            </button>
           </div>
+
+          {collabTab === 'kanban' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <CheckSquare size={16} className="text-secondary" />
+                  Sprint Kanban Board
+                </h2>
+                <span className="text-[10px] text-zinc-500 font-medium">Click arrows to update tasks</span>
+              </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Column 1: TODO */}
@@ -240,9 +375,107 @@ export default function CollabWorkspace() {
                 ))}
               </div>
             </div>
-
           </div>
         </div>
+      )}
+
+          {collabTab === 'sandbox' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                
+                {/* Left Side: Whiteboard Canvas */}
+                <div className="flex flex-col bg-zinc-950 border border-zinc-900 rounded-2xl overflow-hidden shadow-xl p-4 space-y-4">
+                  <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Eraser size={14} className="text-primary" />
+                      Shared Drawing Board
+                    </h3>
+                    
+                    <button
+                      onClick={() => {
+                        const canvas = canvasRef.current;
+                        if (canvas) {
+                          const ctx = canvas.getContext('2d');
+                          ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        }
+                      }}
+                      className="p-1 px-2.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-zinc-300 text-[10px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      <Trash2 size={10} /> Clear
+                    </button>
+                  </div>
+
+                  {/* Draw Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Brush Colors */}
+                    <div className="flex items-center gap-1.5">
+                      {['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#EF4444', '#E4E4E7'].map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setBrushColor(color)}
+                          className={`w-5 h-5 rounded-full border transition-all ${
+                            brushColor === color ? 'scale-110 border-white ring-2 ring-primary/20' : 'border-transparent'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Brush Size */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase">Brush:</span>
+                      <select
+                        value={brushSize}
+                        onChange={(e) => setBrushSize(Number(e.target.value))}
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-semibold px-2 py-1 text-white focus:outline-none"
+                      >
+                        <option value="2">2px</option>
+                        <option value="4">4px</option>
+                        <option value="8">8px</option>
+                        <option value="12">12px</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* HTML5 Canvas */}
+                  <div className="border border-zinc-900 rounded-xl overflow-hidden bg-zinc-950 relative h-[300px]">
+                    <canvas
+                      ref={canvasRef}
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      className="absolute inset-0 w-full h-full cursor-crosshair"
+                    />
+                  </div>
+                </div>
+
+                {/* Right Side: Shared Code Editor */}
+                <div className="flex flex-col bg-zinc-955 border border-zinc-900 rounded-2xl overflow-hidden shadow-xl p-4 space-y-4">
+                  <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Edit3 size={14} className="text-secondary" />
+                      Collaborative Playground
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-zinc-900 text-[10px] text-zinc-500 font-mono">
+                      sync_play.js
+                    </span>
+                  </div>
+
+                  <textarea
+                    value={codePlayground}
+                    onChange={handleCodeChange}
+                    className="flex-1 bg-zinc-955 text-secondary border border-zinc-900 rounded-xl p-4 text-xs font-mono leading-relaxed focus:outline-none focus:border-secondary resize-none min-h-[300px]"
+                    style={{ tabSize: 2 }}
+                    placeholder="// Write code together..."
+                  />
+                </div>
+
+              </div>
+        </div>
+        )}
+      </div>
 
         {/* Real-time Workspace Chat Panel */}
         <div className="space-y-6">

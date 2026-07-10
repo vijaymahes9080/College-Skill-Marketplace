@@ -8,6 +8,38 @@ import {
 export default function StudentDashboard({ setView }) {
   const { studentProfile, notifications, currentRole, handleSimulateEvent } = useContext(AppContext);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedNode, setSelectedNode] = useState(null);
+
+  const skillNodes = [
+    { id: 'react', label: 'React.js Basics', score: 92, verified: true, x: 100, y: 150, unlocked: true, color: 'text-primary', description: 'Core React concepts including state hooks, props interface, and effect syncs.' },
+    { id: 'state', label: 'State Optimization', score: 88, verified: true, x: 250, y: 80, unlocked: true, color: 'text-secondary', description: 'Deep component tree updates, context memoization, and client state caching.' },
+    { id: 'tailwind', label: 'Tailwind CSS', score: 75, verified: false, x: 250, y: 220, unlocked: true, color: 'text-yellow-400', description: 'Pixel perfect layout styling, responsive breakpoints, flexbox grid structures.' },
+    { id: 'rest', label: 'REST Architecture', score: 82, verified: true, x: 400, y: 80, unlocked: true, color: 'text-green-400', description: 'HTTP RESTful standards, route schema validation, and database operations.' },
+    { id: 'websockets', label: 'WebSockets', score: 0, verified: false, x: 400, y: 220, unlocked: false, color: 'text-pink-400', description: 'Real-time WebSocket server connection gateways and peer-to-peer broadcasts.' },
+    { id: 'vectordb', label: 'Vector Database', score: 0, verified: false, x: 550, y: 150, unlocked: false, color: 'text-red-400', description: 'Semantic database indexes, similarity searches, and high scale retrieval optimization.' }
+  ];
+
+  const nodeQuests = {
+    react: [
+      { type: 'Job Post', title: 'Front-End React Intern', owner: 'Stripe Inc.', award: '$2,500/mo' },
+      { type: 'Service Listing', title: 'React + Tailwind Landing Page', owner: 'Alex Chen', award: '$150' }
+    ],
+    state: [
+      { type: 'Class Challenge', title: 'Advanced State Optimization Challenge', owner: 'Dr. Marcus Vance', award: '200 XP' }
+    ],
+    tailwind: [
+      { type: 'Service Listing', title: 'Figma to Tailwind Integration service', owner: 'Priya Sharma', award: '$120' }
+    ],
+    rest: [
+      { type: 'Service Listing', title: 'Build clean REST APIs in Node.js', owner: 'Alex Chen', award: '$200' }
+    ],
+    websockets: [
+      { type: 'Class Challenge', title: 'Real-time Live Chat Integration Gateway', owner: 'Dr. Marcus Vance', award: '180 XP' }
+    ],
+    vectordb: [
+      { type: 'Class Challenge', title: 'Advanced Pathfinding Vector Challenge', owner: 'Dr. Marcus Vance', award: '300 XP' }
+    ]
+  };
 
   if (!studentProfile) {
     return (
@@ -145,6 +177,13 @@ export default function StudentDashboard({ setView }) {
               {activeTab === 'overview' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-primary"></div>}
             </button>
             <button 
+              onClick={() => setActiveTab('skilltree')}
+              className={`pb-4 text-sm font-semibold relative ${activeTab === 'skilltree' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              RPG Skill Map
+              {activeTab === 'skilltree' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-primary"></div>}
+            </button>
+            <button 
               onClick={() => setActiveTab('learning')}
               className={`pb-4 text-sm font-semibold relative ${activeTab === 'learning' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
@@ -159,6 +198,168 @@ export default function StudentDashboard({ setView }) {
               {activeTab === 'timeline' && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-primary"></div>}
             </button>
           </div>
+
+          {activeTab === 'skilltree' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="glass-card p-6 rounded-2xl flex flex-col md:flex-row gap-6">
+                
+                {/* Visual SVG Skill Map */}
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-white mb-2">Campus Skill Tree Progress</h3>
+                  <p className="text-xs text-zinc-500 mb-4">Click on unlocked nodes to review skill specifics and discover active marketplace quests.</p>
+                  
+                  <div className="bg-zinc-950/80 border border-zinc-900 rounded-xl overflow-hidden p-2">
+                    <svg viewBox="0 0 700 300" className="w-full h-auto">
+                      <defs>
+                        <pattern id="grid-pattern" width="30" height="30" patternUnits="userSpaceOnUse">
+                          <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.015)" strokeWidth="1" />
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+
+                      {/* Render connection lines */}
+                      {[
+                        { from: 'react', to: 'state' },
+                        { from: 'react', to: 'tailwind' },
+                        { from: 'state', to: 'rest' },
+                        { from: 'tailwind', to: 'websockets' },
+                        { from: 'websockets', to: 'vectordb' },
+                        { from: 'rest', to: 'vectordb' }
+                      ].map((conn, idx) => {
+                        const fromNode = skillNodes.find(n => n.id === conn.from);
+                        const toNode = skillNodes.find(n => n.id === conn.to);
+                        const isUnlocked = fromNode.unlocked && toNode.unlocked;
+                        return (
+                          <line 
+                            key={idx}
+                            x1={fromNode.x}
+                            y1={fromNode.y}
+                            x2={toNode.x}
+                            y2={toNode.y}
+                            stroke={isUnlocked ? '#3B82F6' : '#27272A'}
+                            strokeWidth={2}
+                            strokeDasharray={isUnlocked ? '0' : '4 4'}
+                          />
+                        );
+                      })}
+
+                      {/* Render Node Circles and Icons */}
+                      {skillNodes.map((node) => {
+                        const isSelected = selectedNode?.id === node.id;
+                        return (
+                          <g key={node.id} className="cursor-pointer" onClick={() => setSelectedNode(node)}>
+                            <circle
+                              cx={node.x}
+                              cy={node.y}
+                              r={18}
+                              fill={node.unlocked ? 'rgba(59, 130, 246, 0.15)' : '#09090b'}
+                              stroke={isSelected ? '#EC4899' : (node.unlocked ? '#3B82F6' : '#27272A')}
+                              strokeWidth={isSelected ? 3 : 2}
+                              className="transition-all hover:scale-105"
+                            />
+                            {/* Inner lock icon if locked */}
+                            {!node.unlocked && (
+                              <text
+                                x={node.x}
+                                y={node.y + 4}
+                                fill="#52525B"
+                                fontSize="12"
+                                textAnchor="middle"
+                                className="select-none pointer-events-none"
+                              >
+                                🔒
+                              </text>
+                            )}
+                            {node.unlocked && (
+                              <text
+                                x={node.x}
+                                y={node.y + 4}
+                                fill="#60A5FA"
+                                fontSize="10"
+                                fontWeight="bold"
+                                textAnchor="middle"
+                                className="select-none pointer-events-none"
+                              >
+                                {node.score}%
+                              </text>
+                            )}
+                            <text
+                              x={node.x}
+                              y={node.y - 26}
+                              fill={node.unlocked ? '#E4E4E7' : '#52525B'}
+                              fontSize="10"
+                              fontWeight="bold"
+                              textAnchor="middle"
+                              className="select-none pointer-events-none font-sans"
+                            >
+                              {node.label}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Node Details Drawer panel */}
+                <div className="w-full md:w-72 bg-zinc-950 border border-zinc-900 rounded-xl p-4 flex flex-col justify-between min-h-[300px]">
+                  {selectedNode ? (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded ${
+                            selectedNode.unlocked ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-zinc-800 text-zinc-400'
+                          }`}>
+                            {selectedNode.unlocked ? 'Unlocked' : 'Locked Node'}
+                          </span>
+                          {selectedNode.verified && (
+                            <span className="text-[9px] font-semibold text-success uppercase">Verified</span>
+                          )}
+                        </div>
+                        <h4 className="text-sm font-bold text-white mt-2">{selectedNode.label}</h4>
+                        <p className="text-[11px] text-zinc-550 mt-1 leading-relaxed">{selectedNode.description}</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block border-b border-zinc-900 pb-1">
+                          Connected Quests ({nodeQuests[selectedNode.id]?.length || 0})
+                        </span>
+                        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                          {nodeQuests[selectedNode.id]?.map((quest, qidx) => (
+                            <div key={qidx} className="p-2 rounded bg-zinc-900 border border-zinc-850 flex items-center justify-between text-[11px]">
+                              <div>
+                                <h5 className="font-semibold text-white">{quest.title}</h5>
+                                <span className="text-[9px] text-zinc-500">{quest.type} • {quest.owner}</span>
+                              </div>
+                              <span className="text-[10px] font-bold text-success">{quest.award}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {selectedNode.unlocked ? (
+                        <button
+                          onClick={() => setView('marketplace')}
+                          className="w-full py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-[11px] font-semibold transition-all flex items-center justify-center gap-1"
+                        >
+                          Enlist in Active Quest <ArrowRight size={10} />
+                        </button>
+                      ) : (
+                        <div className="p-2.5 rounded bg-red-955/10 border border-red-900/30 text-[10px] text-red-400 leading-relaxed">
+                          ⚠️ <strong>Prerequisites missing:</strong> Earn XP and certifications to unlock this node branch.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4 text-zinc-500 text-xs leading-relaxed">
+                      💡 Click on any skill node to unlock quest routes, review certification criteria, and browse listings.
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          )}
 
           {activeTab === 'overview' && (
             <div className="space-y-6">

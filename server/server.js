@@ -33,7 +33,7 @@ wss.on('connection', (ws) => {
       console.log('Received WebSocket Message:', parsed);
       
       // If it's a chat message, we broadcast it to all other clients
-      if (parsed.type === 'CHAT_MSG' || parsed.type === 'KANBAN_MOVE') {
+      if (parsed.type === 'CHAT_MSG' || parsed.type === 'KANBAN_MOVE' || parsed.type === 'WHITEBOARD_DRAW' || parsed.type === 'CODE_SYNC') {
         broadcast(parsed);
       }
     } catch (err) {
@@ -418,6 +418,73 @@ app.post('/api/v1/marketplace/orders/:id/complete', (req, res) => {
     });
 
     res.json({ success: true, order });
+  } else {
+    res.status(404).json({ success: false, message: 'Order not found' });
+  }
+});
+
+app.post('/api/v1/marketplace/orders/:id/dispute', (req, res) => {
+  const { id } = req.params;
+  const { reason, proofText } = req.body;
+  const order = db.orders.find(o => o.id === id);
+  
+  if (order) {
+    order.status = 'disputed';
+    order.disputeReason = reason || 'Unresolved specification mismatch';
+    order.proofText = proofText || 'Milestone proof of work submitted but buyer refused release.';
+    order.disputeStatus = 'awaiting_jury';
+    
+    broadcast({
+      type: 'NOTIFICATION',
+      payload: {
+        title: 'Escrow Dispute Initiated!',
+        message: `Order #${id} is disputed. Escrow locked. AI Jury summoned.`,
+        category: 'order'
+      }
+    });
+    
+    res.json({ success: true, order });
+  } else {
+    res.status(404).json({ success: false, message: 'Order not found' });
+  }
+});
+
+app.post('/api/v1/marketplace/orders/:id/arbitrate', (req, res) => {
+  const { id } = req.params;
+  const order = db.orders.find(o => o.id === id);
+  
+  if (order) {
+    const deliberation = [
+      { speaker: 'Dr. Marcus Vance (CS Mentor)', vote: 90, comment: 'Code structure is sound and matches milestone specs. Some documentation is missing, but core logic functions perfectly. Recommend 90% payout.' },
+      { speaker: 'Sarah K. (Google Alumni)', vote: 80, comment: 'The UI components match Figma designs, but there are a few console warnings. Payout 80% to student, refunding 20% for refactoring.' },
+      { speaker: 'AI complianceBot', vote: 100, comment: 'Transaction ledger logs indicate student submitted files 12 hours before deadline. Buyer failed to respond within milestone period. Recommend 100% payout.' }
+    ];
+    
+    const avgVote = Math.round((deliberation[0].vote + deliberation[1].vote + deliberation[2].vote) / 3);
+    
+    order.status = 'resolved';
+    order.disputeStatus = 'resolved';
+    order.verdict = `Jury split verdict: Student awarded ${avgVote}%, Client refunded ${100 - avgVote}%.`;
+    order.deliberationLog = deliberation;
+    
+    const student = db.students.find(s => s.id === order.studentId);
+    if (student) {
+      const awardedAmount = (order.amount * avgVote) / 100;
+      student.earnings += awardedAmount;
+      student.xp += Math.round(awardedAmount * 1.5);
+      student.level = Math.floor(student.xp / 600) + 1;
+    }
+    
+    broadcast({
+      type: 'NOTIFICATION',
+      payload: {
+        title: 'AI Arbitration Verdict Rendered',
+        message: `Order #${id} resolved: Student awarded ${avgVote}% of escrow.`,
+        category: 'order'
+      }
+    });
+    
+    res.json({ success: true, order, deliberationLog: deliberation });
   } else {
     res.status(404).json({ success: false, message: 'Order not found' });
   }

@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
-import { Search, Filter, DollarSign, Clock, Star, ExternalLink, ShieldCheck, Plus, Check } from 'lucide-react';
+import { Search, Filter, DollarSign, Clock, Star, ExternalLink, ShieldCheck, Plus, Check, Scale, AlertTriangle } from 'lucide-react';
 
 export default function Marketplace() {
   const { gigs, orders, currentUser, studentProfile, handleCreateGig, handleHireStudent, refreshAllData } = useContext(AppContext);
@@ -17,6 +17,55 @@ export default function Marketplace() {
   const [newDelivery, setNewDelivery] = useState('');
   const [newCategory, setNewCategory] = useState('Web Development');
   const [newTags, setNewTags] = useState('');
+
+  // Dispute & Jury states
+  const [showDisputeModal, setShowDisputeModal] = useState(null);
+  const [disputeReason, setDisputeReason] = useState('Deliverables did not meet the agreed specifications.');
+  const [proofText, setProofText] = useState('I built all features in the contract milestone, but buyer failed to release escrow.');
+  const [selectedDisputeOrder, setSelectedDisputeOrder] = useState(null);
+  const [juryPhase, setJuryPhase] = useState(0); // 0 = ready, 1 = deliberating, 2 = resolved
+  const [juryLog, setJuryLog] = useState([]);
+
+  const submitDispute = async (orderId) => {
+    try {
+      const res = await fetch(`/api/v1/marketplace/orders/${orderId}/dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: disputeReason, proofText: proofText })
+      });
+      if (res.ok) {
+        alert("🔒 Escrow Locked. Case submitted to the AI Arbitration Jury.");
+        setShowDisputeModal(null);
+        refreshAllData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const runArbitrationJury = async (orderId) => {
+    setJuryPhase(1);
+    setJuryLog(['Jury Assembling: summoning Dr. Marcus Vance, Sarah K. and complianceBot...', 'Inspecting contract ledger...', 'Reading student work proofs...']);
+    
+    await new Promise(r => setTimeout(r, 1000));
+    setJuryLog(prev => [...prev, 'Dr. Marcus Vance (CS Mentor): "Analyzing code layout... 90% correct."']);
+    
+    await new Promise(r => setTimeout(r, 1000));
+    setJuryLog(prev => [...prev, 'Sarah K. (Google Alumni): "Checking usability... 80% matches UX standard."']);
+    
+    await new Promise(r => setTimeout(r, 1000));
+    setJuryLog(prev => [...prev, 'complianceBot (AI Audit): "Verifying deadline timeline... 100% compliant."']);
+    
+    try {
+      const res = await fetch(`/api/v1/marketplace/orders/${orderId}/arbitrate`, { method: 'POST' });
+      if (res.ok) {
+        setJuryPhase(2);
+        refreshAllData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const categories = ['All', 'Web Development', 'UI/UX', 'Graphic Design', 'AI/ML', 'Content Writing'];
 
@@ -223,6 +272,8 @@ export default function Marketplace() {
                         <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
                           ord.status === 'completed' ? 'bg-success/20 text-success border border-success/30' :
                           ord.status === 'submitted' ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' :
+                          ord.status === 'disputed' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                          ord.status === 'resolved' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' :
                           'bg-primary/20 text-primary border border-primary/30'
                         }`}>
                           {ord.status}
@@ -240,7 +291,7 @@ export default function Marketplace() {
                       </div>
 
                       {/* Interactive work state flows */}
-                      <div className="border-t border-zinc-800/80 pt-2 flex justify-end gap-2">
+                      <div className="border-t border-zinc-800/80 pt-2 flex flex-col gap-2">
                         {isStudentWork && ord.status === 'in_progress' && (
                           <button
                             onClick={() => handleDeliver(ord.id)}
@@ -249,12 +300,52 @@ export default function Marketplace() {
                             Submit Deliverables
                           </button>
                         )}
+                        
                         {!isStudentWork && ord.status === 'submitted' && (
+                          <div className="flex gap-2 w-full">
+                            <button
+                              onClick={() => handleAccept(ord.id)}
+                              className="flex-1 py-1.5 rounded-lg bg-success hover:bg-success-hover text-[10px] font-bold text-white transition-all"
+                            >
+                              Accept & Release
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowDisputeModal(ord);
+                                setDisputeReason('Substandard deliverables or incomplete milestones.');
+                                setProofText('The UI is bugged and does not run correctly.');
+                              }}
+                              className="py-1.5 px-2.5 rounded-lg bg-red-950 border border-red-900/50 hover:bg-red-900/35 text-[10px] font-bold text-red-400 transition-all flex items-center justify-center"
+                            >
+                              <AlertTriangle size={10} />
+                            </button>
+                          </div>
+                        )}
+
+                        {ord.status === 'disputed' && (
                           <button
-                            onClick={() => handleAccept(ord.id)}
-                            className="w-full py-1.5 rounded-lg bg-success hover:bg-success-hover text-[10px] font-bold text-white transition-all"
+                            onClick={() => {
+                              setSelectedDisputeOrder(ord);
+                              setJuryPhase(0);
+                              setJuryLog([]);
+                            }}
+                            className="w-full py-1.5 rounded-lg bg-red-500 hover:bg-red-650 text-[10px] font-bold text-white transition-all flex items-center justify-center gap-1.5"
                           >
-                            Accept & Release Funds
+                            <Scale size={10} />
+                            Enter Jury Room
+                          </button>
+                        )}
+
+                        {ord.status === 'resolved' && (
+                          <button
+                            onClick={() => {
+                              setSelectedDisputeOrder(ord);
+                              setJuryPhase(2);
+                            }}
+                            className="w-full py-1.5 rounded-lg bg-cyan-950 border border-cyan-800 hover:bg-cyan-900 text-[10px] font-bold text-cyan-400 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            <Scale size={10} />
+                            View Verdict
                           </button>
                         )}
                       </div>
@@ -457,6 +548,171 @@ export default function Marketplace() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ESCROW DISPUTE FORM MODAL */}
+      {showDisputeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-md rounded-2xl p-6 relative overflow-hidden animate-zoomIn border border-red-900/40">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <AlertTriangle className="text-red-400" size={18} />
+              <span>Raise Escrow Dispute</span>
+            </h3>
+            <p className="text-zinc-400 text-xs mt-1">This will lock order funds in escrow and request AI Jury Arbitration.</p>
+
+            <div className="space-y-4 mt-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-zinc-500 block">Dispute Claim / Reason</label>
+                <select
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-red-500"
+                >
+                  <option value="Deliverables do not meet the agreed specifications.">Substandard deliverables</option>
+                  <option value="Student missed the contractual timeline.">Missed milestone deadline</option>
+                  <option value="Code does not run and compiles with critical errors.">Non-functional deliverables</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-zinc-500 block">Your Proof / Supporting Statement</label>
+                <textarea
+                  value={proofText}
+                  onChange={(e) => setProofText(e.target.value)}
+                  rows={3}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 resize-none"
+                  placeholder="Explain why the deliverables are rejected..."
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-zinc-800/80 pt-4">
+              <button
+                onClick={() => setShowDisputeModal(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:bg-zinc-855 animate-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => submitDispute(showDisputeModal.id)}
+                className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-650 text-white text-xs font-semibold"
+              >
+                File Dispute
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI ARBITRATION JURY COURTROOM MODAL */}
+      {selectedDisputeOrder && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-3xl rounded-2xl p-6 relative overflow-hidden animate-zoomIn border border-zinc-800 flex flex-col md:flex-row gap-6 max-h-[90vh] overflow-y-auto">
+            
+            {/* Left side: Case specs */}
+            <div className="flex-1 space-y-4">
+              <div>
+                <span className="px-2 py-0.5 text-[9px] font-bold uppercase rounded bg-red-500/10 text-red-400 border border-red-500/20">
+                  Case ID: #{selectedDisputeOrder.id}
+                </span>
+                <h3 className="text-lg font-bold text-white mt-2 leading-snug">{selectedDisputeOrder.title}</h3>
+                <p className="text-[10px] text-zinc-500">Escrow Value locked: <strong className="text-success">${selectedDisputeOrder.amount}</strong></p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-900 space-y-3">
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-zinc-500 block">Dispute Reason</span>
+                  <p className="text-xs text-red-300 font-semibold">{selectedDisputeOrder.disputeReason || disputeReason}</p>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-zinc-500 block">Client Proof Submission</span>
+                  <p className="text-xs text-zinc-400 leading-relaxed italic">"{selectedDisputeOrder.proofText || proofText}"</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4 border-t border-zinc-900">
+                <button
+                  onClick={() => setSelectedDisputeOrder(null)}
+                  className="px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-xs font-semibold text-zinc-300"
+                >
+                  Exit Courtroom
+                </button>
+              </div>
+            </div>
+
+            {/* Right side: Jury timeline or results */}
+            <div className="flex-1 bg-zinc-955/60 border border-zinc-900 rounded-xl p-5 flex flex-col justify-between min-h-[350px]">
+              
+              <div className="space-y-4 flex-1">
+                <div className="flex items-center gap-2 border-b border-zinc-900 pb-2">
+                  <Scale size={16} className="text-red-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">AI Arbitration Board</span>
+                </div>
+
+                {juryPhase === 0 && (
+                  <div className="space-y-4 text-center py-10 animate-fadeIn">
+                    <p className="text-xs text-zinc-450 leading-relaxed">
+                      Summons the peer mentor, alumni panelist, and legal bot to arbitrate the dispute.
+                    </p>
+                    <button
+                      onClick={() => runArbitrationJury(selectedDisputeOrder.id)}
+                      className="px-5 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all shadow-lg shadow-red-500/10"
+                    >
+                      Assemble Jury Panel
+                    </button>
+                  </div>
+                )}
+
+                {juryPhase === 1 && (
+                  <div className="space-y-3 font-mono animate-fadeIn">
+                    <span className="text-[9px] text-zinc-550 font-bold uppercase tracking-wider block">Live Deliberation Log</span>
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                      {juryLog.map((log, i) => (
+                        <div key={i} className="text-[10px] text-zinc-400 p-2 rounded bg-zinc-950 border border-zinc-900 leading-relaxed">
+                          ⚡ {log}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-red-400 py-2 animate-pulse">
+                      <RefreshCw className="animate-spin" size={10} />
+                      <span>Jury voting in progress...</span>
+                    </div>
+                  </div>
+                )}
+
+                {juryPhase === 2 && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div className="p-3 bg-cyan-950/20 border border-cyan-900/50 rounded-xl">
+                      <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">Jury Verdict</span>
+                      <p className="text-xs text-white font-semibold mt-1">
+                        {selectedDisputeOrder.verdict || "Jury split verdict: Student awarded 90%, Client refunded 10%."}
+                      </p>
+                    </div>
+
+                    <span className="text-[10px] font-bold text-zinc-550 uppercase tracking-wider block border-b border-zinc-900 pb-1">Juror Breakdown</span>
+                    <div className="space-y-3">
+                      {(selectedDisputeOrder.deliberationLog || [
+                        { speaker: 'Dr. Marcus Vance (CS Mentor)', vote: 90, comment: 'Code structure is sound and matches milestone specs. Recommend 90% payout.' },
+                        { speaker: 'Sarah K. (Google Alumni)', vote: 80, comment: 'UX layout matches Figma designs, but there are a few styling errors. Payout 80% to student.' },
+                        { speaker: 'AI complianceBot', vote: 100, comment: 'Ledger indicates files submitted before deadline. Recommend 100% payout.' }
+                      ]).map((j, idx) => (
+                        <div key={idx} className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-900 text-[11px]">
+                          <div className="flex justify-between font-bold text-[10px]">
+                            <span className="text-zinc-300">{j.speaker}</span>
+                            <span className="text-success">{j.vote}% Payout</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed italic">"{j.comment}"</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+          </div>
         </div>
       )}
 
