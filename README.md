@@ -74,7 +74,18 @@ You can view the detailed architecture layout, user flows, database relational d
 
 ---
 
+## 🎨 Interactive Interface Mockups
+
+````carousel
+![AI Technical Interview Sandbox Mockup](docs/images/ai_interview_mockup.png)
+<!-- slide -->
+![Escrow Dispute Arbitration Court Mockup](docs/images/escrow_dispute_mockup.png)
+<!-- slide -->
+![RPG Gamified Skill Tree Quest Map Mockup](docs/images/rpg_skill_tree_mockup.png)
+````
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](file:///d:/current%20project/College%20Skill%20Marketplace/LICENSE) file for details.
-
